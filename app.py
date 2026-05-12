@@ -22,7 +22,7 @@ def update_sheet(row_idx, col_idx, value):
     sheet.update_cell(row_idx, col_idx, value)
     st.rerun()
 
-# --- 3. SIDEBAR NAVIGATION (4-BULLET STYLE) ---
+# --- 3. SIDEBAR NAVIGATION ---
 menu = st.sidebar.radio(
     "Navigation",
     [
@@ -33,14 +33,12 @@ menu = st.sidebar.radio(
     ]
 )
 
-# --- 4. DATA LOADING ---
-all_values = sheet.get_all_values()
-headers = all_values[0]
-df_master = pd.DataFrame(all_values[1:], columns=headers)
-existing_titles = df_master['Name'].tolist() if not df_master.empty else []
-
-# --- 5. PAGE: ADD NEW CONTENT ---
+# --- 4. PAGE: ADD NEW CONTENT ---
 if menu == "🔍 Add New Content":
+    # Load existing titles ONLY when searching to prevent false "Already in Buffet" errors
+    all_values = sheet.get_all_values()
+    existing_titles = [row[0].lower() for row in all_values[1:]] if len(all_values) > 1 else []
+
     query = st.text_input("Search Cinema or Web Series:")
     if query:
         results = requests.get(f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={query}").json().get('results', [])
@@ -55,6 +53,7 @@ if menu == "🔍 Add New Content":
             genres = ", ".join([g['name'] for g in details.get('genres', [])])
             poster_url = f"https://image.tmdb.org/t/p/w500{details.get('poster_path', '')}"
 
+            # Calculate Duration
             total_mins = 0
             ep_count = details.get('number_of_episodes', 0) if m_type_raw == "tv" else 0
             if m_type_raw == "tv":
@@ -72,29 +71,43 @@ if menu == "🔍 Add New Content":
             with c1: st.image(poster_url, width=150)
             with c2:
                 st.subheader(f"{title} ({year})")
-                if title.lower() in [t.lower() for t in existing_titles]:
-                    st.error("Already in your Buffet!")
-                    continue
+                
+                # Check duplicate
+                if title.lower() in existing_titles:
+                    st.warning(f"Note: '{title}' is already in your Buffet lists.")
+                    # We use a warning instead of a block, but we hide the add buttons below
+                
                 st.write(f"🎭 {genres}")
                 st.write(f"⏳ {dur_str}")
             
             with c3:
-                t_val = st.slider("Trust:", 2.0, 5.0, 4.0, 0.5, key=f"t_new_{item['id']}")
-                i_val = st.select_slider("Interest:", ["Low", "Medium", "High"], "High", key=f"i_new_{item['id']}")
-                w_map = {"High": 3, "Medium": 2, "Low": 1}
-                
-                if st.button("➕ Add to Watchlist", key=f"a_{item['id']}", use_container_width=True):
-                    sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Planned"])
-                    st.rerun()
-                if st.button("🎬 Start Watching", key=f"w_{item['id']}", use_container_width=True):
-                    sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Watching"])
-                    st.rerun()
-                if st.button("✅ Already Watched", key=f"d_{item['id']}", use_container_width=True):
-                    sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Completed"])
-                    st.rerun()
+                # Only show buttons if NOT a duplicate
+                if title.lower() not in existing_titles:
+                    t_val = st.slider("Trust:", 2.0, 5.0, 4.0, 0.5, key=f"t_new_{item['id']}")
+                    i_val = st.select_slider("Interest:", ["Low", "Medium", "High"], "High", key=f"i_new_{item['id']}")
+                    w_map = {"High": 3, "Medium": 2, "Low": 1}
+                    
+                    if st.button("➕ Add to Watchlist", key=f"a_{item['id']}", use_container_width=True):
+                        sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Planned"])
+                        st.success("Success! Added to Yet to Watch.")
+                        st.rerun()
+                    if st.button("🎬 Start Watching", key=f"w_{item['id']}", use_container_width=True):
+                        sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Watching"])
+                        st.success("Success! Added to Started Watching.")
+                        st.rerun()
+                    if st.button("✅ Already Watched", key=f"d_{item['id']}", use_container_width=True):
+                        sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Completed"])
+                        st.success("Success! Added to Completed.")
+                        st.rerun()
+                else:
+                    st.info("Check your Watch Lists to manage this title.")
 
-# --- 6. DISPLAY LISTS ---
+# --- 5. DISPLAY LISTS ---
 else:
+    all_values = sheet.get_all_values()
+    headers = all_values[0]
+    df_master = pd.DataFrame(all_values[1:], columns=headers)
+    
     status_map = {"⏳ Yet to Watch": "Planned", "📺 Started Watching": "Watching", "✅ Completed Watching": "Completed"}
     target_status = status_map[menu]
     filtered_df = df_master[df_master['Status'] == target_status]
@@ -131,6 +144,7 @@ else:
                         if st.button("Save", key=f"s_imdb_{idx}"):
                             update_sheet(row_num, 5, new_imdb)
                             del st.session_state[f"m_imdb_{idx}"]
+                            st.rerun()
 
                     interest = row['Interest Level']
                     color = {"High": "green", "Medium": "orange", "Low": "gray"}.get(interest, "blue")
@@ -155,6 +169,7 @@ else:
                         if st.button("Save", key=f"s_tru_{idx}"):
                             update_sheet(row_num, 8, new_tru)
                             del st.session_state[f"m_tru_{idx}"]
+                            st.rerun()
 
                     if target_status == "Planned":
                         if st.button("🎬 Start Watching", key=f"btn_sw_{idx}", use_container_width=True): 
