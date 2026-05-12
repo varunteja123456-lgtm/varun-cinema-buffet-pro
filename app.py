@@ -22,15 +22,32 @@ def update_sheet(row_idx, col_idx, value):
     sheet.update_cell(row_idx, col_idx, value)
     st.rerun()
 
-# --- 3. SIDEBAR NAVIGATION (With Groups) ---
-st.sidebar.header("Navigation")
-main_menu = st.sidebar.radio("Select Action:", ["🔍 Add New Content", "📋 My Watch List"])
+# --- 3. SIDEBAR NAVIGATION ---
+st.sidebar.title("Buffet Menu")
 
-if main_menu == "📋 My Watch List":
-    # Subgroup for the different statuses
-    menu = st.sidebar.selectbox("Category:", ["⏳ Yet to Watch", "📺 Started Watching", "✅ Completed Watching"])
+# Section 1: Search Button
+st.sidebar.subheader("New Content")
+add_content = st.sidebar.button("🔍 Add New Content", use_container_width=True)
+
+# Section 2: Watch List Group
+st.sidebar.markdown("---")
+st.sidebar.subheader("My Watch List")
+menu_choice = st.sidebar.radio(
+    "View Category:",
+    ["⏳ Yet to Watch", "📺 Started Watching", "✅ Completed Watching"],
+    label_visibility="collapsed"
+)
+
+# Manage State: Determine what the user is currently looking at
+if add_content:
+    st.session_state.current_page = "🔍 Add New Content"
+elif "current_page" not in st.session_state:
+    st.session_state.current_page = menu_choice
 else:
-    menu = "🔍 Add New Content"
+    # If a radio button was clicked, update the current page
+    st.session_state.current_page = menu_choice
+
+current_action = st.session_state.current_page
 
 # --- 4. DATA LOADING ---
 all_values = sheet.get_all_values()
@@ -39,7 +56,7 @@ df_master = pd.DataFrame(all_values[1:], columns=headers)
 existing_titles = df_master['Name'].tolist() if not df_master.empty else []
 
 # --- 5. PAGE: ADD NEW CONTENT ---
-if menu == "🔍 Add New Content":
+if current_action == "🔍 Add New Content":
     query = st.text_input("Search Cinema or Web Series:")
     if query:
         results = requests.get(f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={query}").json().get('results', [])
@@ -82,7 +99,6 @@ if menu == "🔍 Add New Content":
                 i_val = st.select_slider("Interest:", ["Low", "Medium", "High"], "High", key=f"i_new_{item['id']}")
                 w_map = {"High": 3, "Medium": 2, "Low": 1}
                 
-                # Updated Search Button Names
                 if st.button("➕ Add to Watchlist", key=f"a_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Planned"])
                     st.success("Added!")
@@ -99,11 +115,11 @@ if menu == "🔍 Add New Content":
 # --- 6. DISPLAY LISTS ---
 else:
     status_map = {"⏳ Yet to Watch": "Planned", "📺 Started Watching": "Watching", "✅ Completed Watching": "Completed"}
-    target_status = status_map[menu]
+    target_status = status_map[current_action]
     filtered_df = df_master[df_master['Status'] == target_status]
     
     if filtered_df.empty:
-        st.info(f"No titles in {menu} yet.")
+        st.info(f"No titles in {current_action} yet.")
     else:
         if target_status == "Planned":
             filtered_df['Interest Weight'] = pd.to_numeric(filtered_df['Interest Weight'], errors='coerce')
@@ -126,7 +142,6 @@ else:
                     st.write(f"⏳ {row['Duration']}")
 
                     # --- PENCIL ICON EDITING ---
-                    # IMDB
                     ci1, ci2 = st.columns([4, 1])
                     ci1.write(f"⭐ IMDB: {row['IMDB Rating']}")
                     if ci2.button("✏️", key=f"e_imdb_{idx}"): st.session_state[f"m_imdb_{idx}"] = True
@@ -136,7 +151,6 @@ else:
                             update_sheet(row_num, 5, new_imdb)
                             del st.session_state[f"m_imdb_{idx}"]
 
-                    # Interest
                     interest = row['Interest Level']
                     color = {"High": "green", "Medium": "orange", "Low": "gray"}.get(interest, "blue")
                     cn1, cn2 = st.columns([4, 1])
@@ -151,7 +165,6 @@ else:
                             del st.session_state[f"m_int_{idx}"]
                             st.rerun()
 
-                    # Trust
                     trust = row['Trust Rating']
                     ct1, ct2 = st.columns([4, 1])
                     ct1.write(f"⭐ Trust: {trust}")
@@ -162,7 +175,6 @@ else:
                             update_sheet(row_num, 8, new_tru)
                             del st.session_state[f"m_tru_{idx}"]
 
-                    # --- ACTION BUTTONS ---
                     if target_status == "Planned":
                         if st.button("🎬 Start Watching", key=f"btn_sw_{idx}", use_container_width=True): 
                             update_sheet(row_num, 11, "Watching")
