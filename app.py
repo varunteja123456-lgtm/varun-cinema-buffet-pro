@@ -123,35 +123,37 @@ else:
                     st.markdown(f"**{row.get('Name')}**")
                     st.caption(f"{row.get('Year')} | {row.get('Type')}")
                     
-                    # Current Display
-                    st.write(f"⭐ IMDB: {row.get('IMDB Rating')} | ⏳ {row.get('Duration')}")
+                    # --- SCORES DISPLAY ---
+                    st.write(f"⭐ IMDB: {row.get('IMDB Rating')}")
                     interest = row.get('Interest Level', 'High')
                     trust = row.get('Trust Rating', '4.0')
                     color = {"High": "green", "Medium": "orange", "Low": "gray"}.get(interest, "blue")
                     st.markdown(f":{color}[❤️ {interest}] | ⭐ Trust: {trust}")
 
-                    # --- NAVIGATION BUTTONS ---
-                    if target_status == "Planned":
-                        c1, c2 = st.columns(2)
-                        if c1.button("🎬 Start", key=f"sw_{idx}"): update_sheet(row_num, 11, "Watching")
-                        if c2.button("✅ Done", key=f"aw_{idx}"): update_sheet(row_num, 11, "Completed")
-                    elif target_status == "Watching":
-                        if st.button("✅ Finished Watching", key=f"fw_{idx}"): update_sheet(row_num, 11, "Completed")
-
-                    # --- UNIVERSAL EDIT SECTION (Available in both lists) ---
-                    with st.expander("📝 Edit Scores"):
-                        new_imdb = st.text_input("Edit IMDB Rating:", row.get('IMDB Rating'), key=f"ei_{idx}")
-                        new_interest = st.select_slider("Edit Interest:", options=["Low", "Medium", "High"], value=interest if interest in ["Low", "Medium", "High"] else "High", key=f"ein_{idx}")
-                        new_trust = st.slider("Edit Trust Rating:", 2.0, 5.0, float(trust) if trust != 'N/A' else 4.0, 0.5, key=f"et_{idx}")
+                    # --- COMPACT EDIT ICON ---
+                    with st.expander("📝 Edit Details"):
+                        new_imdb = st.text_input("IMDB:", row.get('IMDB Rating'), key=f"ei_{idx}")
+                        new_interest = st.select_slider("Interest:", options=["Low", "Medium", "High"], value=interest if interest in ["Low", "Medium", "High"] else "High", key=f"ein_{idx}")
+                        new_trust = st.slider("Trust:", 2.0, 5.0, float(trust) if str(trust).replace('.','').isdigit() else 4.0, 0.5, key=f"et_{idx}")
                         
-                        if st.button("Update All", key=f"save_all_{idx}"):
+                        if st.button("Save ✅", key=f"save_all_{idx}"):
                             w_map = {"High": 3, "Medium": 2, "Low": 1}
-                            # Column mapping: IMDB(5), Trust(8), InterestLevel(9), InterestWeight(10)
-                            sheet.update_cell(row_num, 5, new_imdb)        # IMDB
-                            sheet.update_cell(row_num, 8, new_trust)       # Trust
-                            sheet.update_cell(row_num, 9, new_interest)    # Interest Level
-                            sheet.update_cell(row_num, 10, w_map[new_interest]) # Interest Weight
-                            st.success("Updated!")
+                            sheet.update_cell(row_num, 5, new_imdb)
+                            sheet.update_cell(row_num, 8, new_trust)
+                            sheet.update_cell(row_num, 9, new_interest)
+                            sheet.update_cell(row_num, 10, w_map[new_interest])
                             st.rerun()
+
+                    # --- NAVIGATION BUTTONS (Updated Names) ---
+                    if target_status == "Planned":
+                        # Two distinct buttons as requested
+                        if st.button("🎬 Start Watching", key=f"sw_{idx}", use_container_width=True): 
+                            update_sheet(row_num, 11, "Watching")
+                        if st.button("✅ Already Watched", key=f"aw_{idx}", use_container_width=True): 
+                            update_sheet(row_num, 11, "Completed")
+                            
+                    elif target_status == "Watching":
+                        if st.button("✅ Finished Watching", key=f"fw_{idx}", use_container_width=True): 
+                            update_sheet(row_num, 11, "Completed")
 
                     st.write("---")
