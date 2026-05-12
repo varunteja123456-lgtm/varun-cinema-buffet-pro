@@ -101,20 +101,21 @@ if menu == "Add to Watchlist":
 elif menu == "Manage My Watchlist":
     st.header("🍴 Your Selected Buffet")
     
-    # This reads EVERYTHING, including headers
+    # Freshly pull data
     all_values = sheet.get_all_values()
     
     if len(all_values) <= 1:
         st.info("The Buffet is empty! Add something first.")
     else:
-        # We manually set the headers to avoid 'get_all_records' being picky
+        # Create DataFrame
         df = pd.DataFrame(all_values[1:], columns=all_values[0])
         
-        # Sort logic
-        if 'Interest Weight' in df.columns:
-            df['Interest Weight'] = pd.to_numeric(df['Interest Weight'], errors='coerce')
-            df['Trust Rating'] = pd.to_numeric(df['Trust Rating'], errors='coerce')
-            df = df.sort_values(by=['Interest Weight', 'Trust Rating'], ascending=[False, False])
+        # Ensure numbers are treated as numbers for sorting
+        df['Interest Weight'] = pd.to_numeric(df['Interest Weight'], errors='coerce')
+        df['Trust Rating'] = pd.to_numeric(df['Trust Rating'], errors='coerce')
+        
+        # Master Sort: Weight then Trust
+        df = df.sort_values(by=['Interest Weight', 'Trust Rating'], ascending=[False, False])
         
         # Display Grid
         n = 4 
@@ -123,16 +124,22 @@ elif menu == "Manage My Watchlist":
             chunk = df.iloc[i:i+n]
             for j, (idx, row) in enumerate(chunk.iterrows()):
                 with cols[j]:
-                    if row.get('Poster URL'): st.image(row['Poster URL'], use_column_width=True)
-                    st.markdown(f"**{row.get('Name')}**")
+                    # POSTER: Fixed width to prevent "Giant Poster" syndrome
+                    if row.get('Poster URL'): 
+                        st.image(row['Poster URL'], width=180) 
                     
+                    st.markdown(f"### {row.get('Name')}")
+                    
+                    # METADATA BLOCK (The missing info)
+                    st.caption(f"📅 {row.get('Year')} • 🎬 {row.get('Type')}")
+                    st.write(f"⭐ IMDB: {row.get('IMDB Rating')} | ⏳ {row.get('Duration')}")
+                    
+                    # STATUS & BUTTONS
                     status = row.get('Status', 'Planned')
-                    st.write(f"Status: {status}")
+                    color = "blue" if status == "Planned" else ("orange" if status == "Watching" else "green")
+                    st.markdown(f"Status: :{color}[{status}]")
                     
-                    # Row index in Google Sheets is (original dataframe index + 2)
-                    # because Sheets start at 1 and we have a header row
                     row_num = int(idx) + 2
-                    
                     if status == "Planned":
                         if st.button("Start Watching", key=f"sw_{idx}"):
                             sheet.update_cell(row_num, 11, "Watching")
@@ -141,4 +148,8 @@ elif menu == "Manage My Watchlist":
                         if st.button("Finish Meal", key=f"fin_{idx}"):
                             sheet.update_cell(row_num, 11, "Completed")
                             st.rerun()
+                    
+                    # PERSONAL TASTE
+                    interest = row.get('Interest Level', 'High')
+                    st.write(f"❤️ {interest} Interest | ⭐ Trust: {row.get('Trust Rating')}")
                     st.write("---")
