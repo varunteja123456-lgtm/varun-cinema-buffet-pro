@@ -100,46 +100,45 @@ if menu == "Add to Watchlist":
 # --- 5. PAGE: MANAGE WATCHLIST ---
 elif menu == "Manage My Watchlist":
     st.header("🍴 Your Selected Buffet")
-    data = sheet.get_all_records()
     
-    if not data:
-        st.info("The Buffet is empty! Go back to 'Add to Watchlist' to start.")
+    # This reads EVERYTHING, including headers
+    all_values = sheet.get_all_values()
+    
+    if len(all_values) <= 1:
+        st.info("The Buffet is empty! Add something first.")
     else:
-        df = pd.DataFrame(data)
+        # We manually set the headers to avoid 'get_all_records' being picky
+        df = pd.DataFrame(all_values[1:], columns=all_values[0])
         
-        # Sort logic: Weight (3-1) then Trust (5-2)
-        if 'Interest Weight' in df.columns and 'Trust Rating' in df.columns:
+        # Sort logic
+        if 'Interest Weight' in df.columns:
+            df['Interest Weight'] = pd.to_numeric(df['Interest Weight'], errors='coerce')
+            df['Trust Rating'] = pd.to_numeric(df['Trust Rating'], errors='coerce')
             df = df.sort_values(by=['Interest Weight', 'Trust Rating'], ascending=[False, False])
         
-        # Chunking for Mobile Ordering (1,2,3,4 row by row)
+        # Display Grid
         n = 4 
         for i in range(0, len(df), n):
             cols = st.columns(n)
             chunk = df.iloc[i:i+n]
             for j, (idx, row) in enumerate(chunk.iterrows()):
                 with cols[j]:
-                    if pd.notna(row.get('Poster URL')): st.image(row['Poster URL'], use_column_width=True)
-                    
+                    if row.get('Poster URL'): st.image(row['Poster URL'], use_column_width=True)
                     st.markdown(f"**{row.get('Name')}**")
-                    st.caption(f"{row.get('Year')} • {row.get('Type')}")
                     
-                    # Visual Status Badge
                     status = row.get('Status', 'Planned')
-                    color = "blue" if status == "Planned" else ("orange" if status == "Watching" else "green")
-                    st.markdown(f"Status: :{color}[{status}]")
+                    st.write(f"Status: {status}")
                     
-                    # DYNAMIC UPDATE BUTTONS
-                    # row_idx in gspread is idx + 2 (1 for header, 1 because it's 0-indexed)
-                    row_to_update = idx + 2
+                    # Row index in Google Sheets is (original dataframe index + 2)
+                    # because Sheets start at 1 and we have a header row
+                    row_num = int(idx) + 2
                     
                     if status == "Planned":
                         if st.button("Start Watching", key=f"sw_{idx}"):
-                            sheet.update_cell(row_to_update, 11, "Watching")
+                            sheet.update_cell(row_num, 11, "Watching")
                             st.rerun()
                     elif status == "Watching":
                         if st.button("Finish Meal", key=f"fin_{idx}"):
-                            sheet.update_cell(row_to_update, 11, "Completed")
+                            sheet.update_cell(row_num, 11, "Completed")
                             st.rerun()
-                    
-                    st.write(f"⭐ {row.get('IMDB Rating')} | ⏳ {row.get('Duration')}")
                     st.write("---")
