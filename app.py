@@ -18,18 +18,19 @@ TMDB_API_KEY = "1e08f4e7f84d8985db9da59d7d71e8e8"
 st.set_page_config(page_title="Varun's Buffet Pro", layout="wide")
 st.title("🍽️ Varun’s Cinematic Buffet PRO")
 
-# Helper to update cell and refresh
 def update_sheet(row_idx, col_idx, value):
     sheet.update_cell(row_idx, col_idx, value)
     st.rerun()
 
-# --- 3. SIDEBAR NAVIGATION ---
-menu = st.sidebar.radio("Navigation", [
-    "🔍 Add New Content", 
-    "⏳ Yet to Watch", 
-    "📺 Started Watching", 
-    "✅ Completed Watching"
-])
+# --- 3. SIDEBAR NAVIGATION (With Groups) ---
+st.sidebar.header("Navigation")
+main_menu = st.sidebar.radio("Select Action:", ["🔍 Add New Content", "📋 My Watch List"])
+
+if main_menu == "📋 My Watch List":
+    # Subgroup for the different statuses
+    menu = st.sidebar.selectbox("Category:", ["⏳ Yet to Watch", "📺 Started Watching", "✅ Completed Watching"])
+else:
+    menu = "🔍 Add New Content"
 
 # --- 4. DATA LOADING ---
 all_values = sheet.get_all_values()
@@ -53,7 +54,6 @@ if menu == "🔍 Add New Content":
             genres = ", ".join([g['name'] for g in details.get('genres', [])])
             poster_url = f"https://image.tmdb.org/t/p/w500{details.get('poster_path', '')}"
 
-            # Calculate Duration
             total_mins = 0
             ep_count = details.get('number_of_episodes', 0) if m_type_raw == "tv" else 0
             if m_type_raw == "tv":
@@ -82,15 +82,18 @@ if menu == "🔍 Add New Content":
                 i_val = st.select_slider("Interest:", ["Low", "Medium", "High"], "High", key=f"i_new_{item['id']}")
                 w_map = {"High": 3, "Medium": 2, "Low": 1}
                 
-                col_a, col_b, col_c = st.columns(3)
-                if col_a.button("➕ Add", key=f"a_{item['id']}"):
+                # Updated Search Button Names
+                if st.button("➕ Add to Watchlist", key=f"a_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Planned"])
+                    st.success("Added!")
                     st.rerun()
-                if col_b.button("📺 Watch", key=f"w_{item['id']}"):
+                if st.button("🎬 Start Watching", key=f"w_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Watching"])
+                    st.success("Started!")
                     st.rerun()
-                if col_c.button("✅ Done", key=f"d_{item['id']}"):
+                if st.button("✅ Already Watched", key=f"d_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Completed"])
+                    st.success("Completed!")
                     st.rerun()
 
 # --- 6. DISPLAY LISTS ---
@@ -102,7 +105,6 @@ else:
     if filtered_df.empty:
         st.info(f"No titles in {menu} yet.")
     else:
-        # SORTING
         if target_status == "Planned":
             filtered_df['Interest Weight'] = pd.to_numeric(filtered_df['Interest Weight'], errors='coerce')
             filtered_df['Trust Rating'] = pd.to_numeric(filtered_df['Trust Rating'], errors='coerce')
