@@ -22,32 +22,16 @@ def update_sheet(row_idx, col_idx, value):
     sheet.update_cell(row_idx, col_idx, value)
     st.rerun()
 
-# --- 3. SIDEBAR NAVIGATION ---
-st.sidebar.title("Buffet Menu")
-
-# Section 1: Search Button
-st.sidebar.subheader("New Content")
-add_content = st.sidebar.button("🔍 Add New Content", use_container_width=True)
-
-# Section 2: Watch List Group
-st.sidebar.markdown("---")
-st.sidebar.subheader("My Watch List")
-menu_choice = st.sidebar.radio(
-    "View Category:",
-    ["⏳ Yet to Watch", "📺 Started Watching", "✅ Completed Watching"],
-    label_visibility="collapsed"
+# --- 3. SIDEBAR NAVIGATION (4-BULLET STYLE) ---
+menu = st.sidebar.radio(
+    "Navigation",
+    [
+        "🔍 Add New Content", 
+        "⏳ Yet to Watch", 
+        "📺 Started Watching", 
+        "✅ Completed Watching"
+    ]
 )
-
-# Manage State: Determine what the user is currently looking at
-if add_content:
-    st.session_state.current_page = "🔍 Add New Content"
-elif "current_page" not in st.session_state:
-    st.session_state.current_page = menu_choice
-else:
-    # If a radio button was clicked, update the current page
-    st.session_state.current_page = menu_choice
-
-current_action = st.session_state.current_page
 
 # --- 4. DATA LOADING ---
 all_values = sheet.get_all_values()
@@ -56,7 +40,7 @@ df_master = pd.DataFrame(all_values[1:], columns=headers)
 existing_titles = df_master['Name'].tolist() if not df_master.empty else []
 
 # --- 5. PAGE: ADD NEW CONTENT ---
-if current_action == "🔍 Add New Content":
+if menu == "🔍 Add New Content":
     query = st.text_input("Search Cinema or Web Series:")
     if query:
         results = requests.get(f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={query}").json().get('results', [])
@@ -101,25 +85,22 @@ if current_action == "🔍 Add New Content":
                 
                 if st.button("➕ Add to Watchlist", key=f"a_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Planned"])
-                    st.success("Added!")
                     st.rerun()
                 if st.button("🎬 Start Watching", key=f"w_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Watching"])
-                    st.success("Started!")
                     st.rerun()
                 if st.button("✅ Already Watched", key=f"d_{item['id']}", use_container_width=True):
                     sheet.append_row([title, year, "Web Series" if m_type_raw=="tv" else "Cinema", genres, "N/A", dur_str, poster_url, t_val, i_val, w_map[i_val], "Completed"])
-                    st.success("Completed!")
                     st.rerun()
 
 # --- 6. DISPLAY LISTS ---
 else:
     status_map = {"⏳ Yet to Watch": "Planned", "📺 Started Watching": "Watching", "✅ Completed Watching": "Completed"}
-    target_status = status_map[current_action]
+    target_status = status_map[menu]
     filtered_df = df_master[df_master['Status'] == target_status]
     
     if filtered_df.empty:
-        st.info(f"No titles in {current_action} yet.")
+        st.info(f"No titles in {menu} yet.")
     else:
         if target_status == "Planned":
             filtered_df['Interest Weight'] = pd.to_numeric(filtered_df['Interest Weight'], errors='coerce')
