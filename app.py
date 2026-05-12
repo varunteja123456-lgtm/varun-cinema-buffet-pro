@@ -110,7 +110,6 @@ else:
             filtered_df['Trust Rating'] = pd.to_numeric(filtered_df['Trust Rating'], errors='coerce')
             filtered_df = filtered_df.sort_values(by=['Interest Weight', 'Trust Rating'], ascending=[False, False])
         else:
-            # Show latest activity at the top
             filtered_df = filtered_df.iloc[::-1]
 
         n = 4
@@ -118,48 +117,41 @@ else:
             cols = st.columns(n)
             chunk = filtered_df.iloc[i:i+n]
             for j, (idx, row) in enumerate(chunk.iterrows()):
-                row_num = idx + 2 # GSheet index
+                row_num = idx + 2 
                 with cols[j]:
-                    # 1. Poster & Title
                     st.image(row['Poster URL'], width=180)
                     st.markdown(f"**{row.get('Name')}**")
                     st.caption(f"{row.get('Year')} | {row.get('Type')}")
                     
-                    # 2. Metadata (Visible to everyone)
+                    # Current Display
                     st.write(f"⭐ IMDB: {row.get('IMDB Rating')} | ⏳ {row.get('Duration')}")
-                    
-                    # 3. Visible Ratings (As requested)
-                    interest = row.get('Interest Level', 'N/A')
-                    trust = row.get('Trust Rating', 'N/A')
+                    interest = row.get('Interest Level', 'High')
+                    trust = row.get('Trust Rating', '4.0')
                     color = {"High": "green", "Medium": "orange", "Low": "gray"}.get(interest, "blue")
-                    st.markdown(f":{color}[❤️ {interest} Interest] | ⭐ Trust: {trust}")
+                    st.markdown(f":{color}[❤️ {interest}] | ⭐ Trust: {trust}")
 
-                    # 4. Action Buttons based on List
+                    # --- NAVIGATION BUTTONS ---
                     if target_status == "Planned":
                         c1, c2 = st.columns(2)
-                        if c1.button("🎬 Start Watching", key=f"sw_{idx}"): 
-                            update_sheet(row_num, 11, "Watching")
-                        if c2.button("✅ Already Watched", key=f"aw_{idx}"): 
-                            update_sheet(row_num, 11, "Completed")
-                        
-                        # Visible Editing
-                        with st.expander("📝 Edit Metadata"):
-                            new_trust = st.slider("Update Trust:", 2.0, 5.0, float(trust) if trust != 'N/A' else 4.0, 0.5, key=f"et_{idx}")
-                            new_imdb = st.text_input("Update IMDB:", row['IMDB Rating'], key=f"ei_{idx}")
-                            if st.button("Save Changes", key=f"sav_{idx}"):
-                                sheet.update_cell(row_num, 8, new_trust)
-                                sheet.update_cell(row_num, 5, new_imdb)
-                                st.rerun()
-
+                        if c1.button("🎬 Start", key=f"sw_{idx}"): update_sheet(row_num, 11, "Watching")
+                        if c2.button("✅ Done", key=f"aw_{idx}"): update_sheet(row_num, 11, "Completed")
                     elif target_status == "Watching":
-                        if st.button("✅ Finished Watching", key=f"fw_{idx}"): 
-                            update_sheet(row_num, 11, "Completed")
+                        if st.button("✅ Finished Watching", key=f"fw_{idx}"): update_sheet(row_num, 11, "Completed")
+
+                    # --- UNIVERSAL EDIT SECTION (Available in both lists) ---
+                    with st.expander("📝 Edit Scores"):
+                        new_imdb = st.text_input("Edit IMDB Rating:", row.get('IMDB Rating'), key=f"ei_{idx}")
+                        new_interest = st.select_slider("Edit Interest:", options=["Low", "Medium", "High"], value=interest if interest in ["Low", "Medium", "High"] else "High", key=f"ein_{idx}")
+                        new_trust = st.slider("Edit Trust Rating:", 2.0, 5.0, float(trust) if trust != 'N/A' else 4.0, 0.5, key=f"et_{idx}")
                         
-                        # Visible Editing for Watching list
-                        with st.expander("📝 Edit Metadata"):
-                            new_imdb = st.text_input("Update IMDB:", row['IMDB Rating'], key=f"eiw_{idx}")
-                            if st.button("Save", key=f"swv_{idx}"):
-                                sheet.update_cell(row_num, 5, new_imdb)
-                                st.rerun()
+                        if st.button("Update All", key=f"save_all_{idx}"):
+                            w_map = {"High": 3, "Medium": 2, "Low": 1}
+                            # Column mapping: IMDB(5), Trust(8), InterestLevel(9), InterestWeight(10)
+                            sheet.update_cell(row_num, 5, new_imdb)        # IMDB
+                            sheet.update_cell(row_num, 8, new_trust)       # Trust
+                            sheet.update_cell(row_num, 9, new_interest)    # Interest Level
+                            sheet.update_cell(row_num, 10, w_map[new_interest]) # Interest Weight
+                            st.success("Updated!")
+                            st.rerun()
 
                     st.write("---")
